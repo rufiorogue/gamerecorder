@@ -5,6 +5,7 @@ import os.path
 import re
 import datetime
 import time
+import glob
 from pydantic import BaseModel, ValidationError
 import tomllib
 from xdg_base_dirs import xdg_config_home
@@ -110,19 +111,23 @@ def cycle():
         log_main.info('game was not detected')
         return
 
-    chapter_nr = 1
-    # find next free chapter index
-    while True:
-        output_file = f"{os.environ['HOME']}/Videos/{game_title}_{chapter_nr:02d}_{datetime.datetime.now().strftime('%Y%m%d')}.mkv"
-        if not os.path.exists(output_file):
-           break
-        else:
-            chapter_nr += 1
-    log_main.info('chapter number: %d', chapter_nr)
-    log_main.info('chapter output file: %s', output_file)
+    # generate output file name
+    save_directory = f"{os.environ['HOME']}/Videos"
+    existing_chapter_files = sorted(glob.glob(f'{save_directory}/{game_title}_*'))
+    if len(existing_chapter_files):
+        last_chapter_file = existing_chapter_files[-1]
+        if m := re.match(f'^{save_directory}/{game_title}_([0-9]+)', last_chapter_file):
+            last_chapter_nr = int(m.group(1))
+            new_chapter_nr = last_chapter_nr + 1
+    else:
+        new_chapter_nr = 1
+    save_file = f"{save_directory}/{game_title}_{new_chapter_nr:02d}_{datetime.datetime.now().strftime('%Y%m%d')}.mkv"
+    assert not os.path.exists(save_file) # defensive postcondition check: since the name is unique, the file can't exist
+    log_main.info('new chapter number: %d', new_chapter_nr)
+    log_main.info('new chapter output file: %s', save_file)
 
 
-    proc = gsr_exec(output_file)
+    proc = gsr_exec(save_file)
     log_main.info('GSR started, PID %d', proc.pid)
     log_main.info('watching for game process to exit')
     psutil.wait_procs([psutil.Process(game_pid)])
