@@ -10,6 +10,7 @@ import glob
 from pydantic import BaseModel, ValidationError
 import tomllib
 from xdg_base_dirs import xdg_config_home
+from typing import Optional, NamedTuple
 
 handler = colorlog.StreamHandler()
 handler.setFormatter(
@@ -69,13 +70,15 @@ def build_process_list() -> list[dict]:
     return processes
 
 
-def gsr_exec(output_file: str) -> subprocess.Popen:
+def gsr_exec(output_file: str,
+             audio_application_name: Optional[str],
+             ) -> subprocess.Popen:
     args = [
         'gpu-screen-recorder',
         '-w', conf.mon,
         '-f', str(conf.fps),
         '-k', 'hevc_10bit',
-        '-a', 'default_output',
+        '-a', (f'app:{audio_application_name}' if audio_application_name else 'default_output'),
         '-o', output_file,
         ]
     log_main.debug('gsr_exec with params: %s', ' '.join(args))
@@ -87,7 +90,18 @@ def cycle():
 
     log_main.info('detecting game...')
 
-    def find_game_title() -> tuple[str, int]:
+    class GameMetadata(NamedTuple):
+        title: str
+        exe: str
+        pid: int
+
+    def find_steam_proton_game_executable_by_path_element(path_element: str) -> str:
+        for process in process_list:
+            for cmd_arg in process['cmd']:
+                if m := re.search(rf'steamapps/common/{path_element}/(.+\.exe)', cmd_arg):
+                    return m.group(1)
+
+    def find_steam_proton_game() -> GameMetadata:
         for process in process_list:
             if process['name'] == 'steam-runtime-launch-client':
                 for idx,cmd_arg in enumerate(process['cmd']):
@@ -95,22 +109,28 @@ def cycle():
                         next_cmd_arg =  process['cmd'][idx+1]
                         if 'steamapps/common' in next_cmd_arg:
                             if m := re.search(r'steamapps/common/(.+)', next_cmd_arg):
-                                return m.group(1), process['pid']
-        return None,None
+                                game_title = m.group(1)
+                                game_exe = find_steam_proton_game_executable_by_path_element(game_title)
 
-    game_title,game_pid = find_game_title()
-    if game_title and game_pid:
-        log_main.info('game title: "%s"  PID %d', game_title, game_pid)
+                                return GameMetadata(
+                                    title=game_title,
+                                    exe=game_exe,
+                                    pid=process['pid']
+                                    )
 
-        def strip_extra_characters(s: str) -> str:
-            return s.replace('\'', '').replace(' ', '')
-
-        game_title = strip_extra_characters(game_title)
-
-        log_main.info('video file prefix: "%s"', game_title)
-    else:
+    detected_game = find_steam_proton_game()
+    if detected_game is None:
         log_main.info('game was not detected')
         return
+    log_main.info('found game: %s ', detected_game)
+
+    def strip_extra_characters(s: str) -> str:
+        return s.replace('\'', '').replace(' ', '')
+
+    game_title = strip_extra_characters(detected_game.title)
+
+    log_main.info('video file prefix: "%s"', game_title)
+
 
     # generate output file name
     save_directory = f"{os.environ['HOME']}/Videos"
@@ -127,11 +147,13 @@ def cycle():
     log_main.info('new chapter number: %d', new_chapter_nr)
     log_main.info('new chapter output file: %s', save_file)
 
-
-    proc = gsr_exec(save_file)
+    proc = gsr_exec(
+        output_file=save_file,
+        audio_application_name=detected_game.exe
+        )
     log_main.info('GSR started, PID %d', proc.pid)
     log_main.info('watching for game process to exit')
-    psutil.wait_procs([psutil.Process(game_pid)])
+    psutil.wait_procs([psutil.Process(detected_game.pid)])
     log_main.info('game process exited, shutting down the recorder')
     proc.send_signal(signal.SIGINT)
     recorder_exitcode = proc.wait()
