@@ -1,6 +1,7 @@
 import subprocess
 import colorlog
 import psutil
+import signal
 import os.path
 import re
 import datetime
@@ -132,7 +133,7 @@ def cycle():
     log_main.info('watching for game process to exit')
     psutil.wait_procs([psutil.Process(game_pid)])
     log_main.info('game process exited, shutting down the recorder')
-    proc.terminate()
+    proc.send_signal(signal.SIGINT)
     recorder_exitcode = proc.wait()
     log_main.info('recorder terminated (code %d)', recorder_exitcode)
 
