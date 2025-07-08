@@ -156,18 +156,13 @@ def cycle():
 
     # generate output file name
     save_directory = f"{os.environ['HOME']}/Videos"
-    existing_chapter_files = sorted(glob.glob(f'{save_directory}/{game_title}_*'))
-    if len(existing_chapter_files):
-        last_chapter_file = existing_chapter_files[-1]
-        if m := re.match(f'^{save_directory}/{game_title}_([0-9]+)', last_chapter_file):
-            last_chapter_nr = int(m.group(1))
-            new_chapter_nr = last_chapter_nr + 1
-    else:
-        new_chapter_nr = 1
-    save_file = f"{save_directory}/{game_title}_{new_chapter_nr:02d}_{datetime.datetime.now().strftime('%Y%m%d')}.mkv"
-    assert not os.path.exists(save_file) # defensive postcondition check: since the name is unique, the file can't exist
-    log_main.info('new chapter number: %d', new_chapter_nr)
-    log_main.info('new chapter output file: %s', save_file)
+    save_file_base = f"{save_directory}/{game_title}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    save_file_ext = '.mkv'
+    save_file = save_file_base + save_file_ext
+    if os.path.exists(save_file): # this is very unlikely to happen but let's handle
+        save_file = save_file_base + '_1' + save_file_ext
+        assert os.path.exists(save_file) # confused, bail out!
+    log_main.info('output file: %s', save_file)
 
     proc = gsr_exec(
         output_file=save_file,
