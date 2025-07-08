@@ -102,7 +102,7 @@ def cycle():
                         next_cmd_arg =  process.args[idx+1]
                         if 'steamapps/common' in next_cmd_arg:
                             if m := re.search(r'steamapps/common/(.+)', next_cmd_arg):
-                                game_title = m.group(1)
+                                game_title = m.group(1).replace('Linux','').replace('Binaries','').replace('/','').strip()
                                 log_main.debug('game_title: %s', game_title)
 
                                 if game_title:
