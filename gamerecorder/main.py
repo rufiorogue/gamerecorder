@@ -113,16 +113,28 @@ def cycle():
                                     def get_pipewire_clients() -> list[dict]:
                                         objects = json.loads(subprocess.check_output('pw-dump'))
                                         def is_steam_game_client_obj(obj) -> bool:
+                                            app_id = obj['info']['props']['pipewire.access.portal.app_id'] if ('info' in obj and 'props' in obj['info'] and 'pipewire.access.portal.app_id' in obj['info']['props']) else None
+                                            app_name = obj['info']['props']['application.name'] if ('info' in obj and 'props' in obj['info'] and 'application.name' in obj['info']['props']) else None
+
+                                            accepted_app_names = [
+                                                'UDKGame-Linux',
+                                            ]
+                                            ignore_app_names = [
+                                                'Steam',
+                                                'Steam Voice Settings',
+                                                'Chromium input',
+                                                'upc.exe',
+                                            ]
                                             return (
-                                                    obj['type'] == 'PipeWire:Interface:Client'
-                                                and 'pipewire.access.portal.app_id' in obj['info']['props']
-                                                and obj['info']['props']['pipewire.access.portal.app_id'] == 'com.valvesoftware.Steam'
-                                                and 'application.name' in obj['info']['props']
-                                                and obj['info']['props']['application.name'] != 'Steam'
-                                                and obj['info']['props']['application.name'] != 'Steam Voice Settings'
+                                                obj['type'] == 'PipeWire:Interface:Client'
+                                                and app_id == 'com.valvesoftware.Steam'
+                                                and (
+                                                        app_name in accepted_app_names
+                                                    or  app_name not in ignore_app_names
+                                                    )
                                             )
                                         return list(filter(is_steam_game_client_obj, objects))
-                                    log_main.debug('waiting for pipewire client to appear')
+                                    log_main.info('waiting for pipewire client to appear')
                                     pipewire_application_name = None
                                     while True:
                                         matching_pipewire_clients = get_pipewire_clients()
@@ -131,8 +143,11 @@ def cycle():
                                             log_main.debug('pipewire client app name: %s', pipewire_application_name)
                                             break
                                         else:
-                                            log_main.debug('still waiting')
+                                            log_main.info('  waiting...')
                                             time.sleep(0.5)
+                                            if not psutil.pid_exists(process.pid):
+                                                log_main.warning('sentinel process exited early')
+                                                return None
 
                                     return GameInfo(
                                         title=game_title,
