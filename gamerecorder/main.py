@@ -14,14 +14,27 @@ from gamerecorder.detect import detect_steam_game
 
 
 class Config(BaseModel):
-    """ directory to store video files """
-    out_dir: str = Path.home() / 'Videos'
-
     """  monitor output. Anything that can be "-w" parameter of gsr.  Example: DP-2  """
     mon: str
 
     """ video frame rate. Example: 144  """
     fps: int
+
+    """ the following parameters are set to defaults -- no need to change them unless necessary """
+
+    """ directory to store video files
+    """
+    out_dir: str = Path.home() / 'Videos'
+
+    """ video codec. Corresponding to gsr option -k
+        values: h264, hevc, av1, vp8, vp9, hevc_hdr, av1_hdr, hevc_10bit or av1_10bit
+    """
+    vcodec: str = 'hevc_10bit'
+
+    """ video quality. Corresponding to gsr option -q
+        values: medium, high, very_high or ultra
+    """
+    quality: str = 'very_high'
 
 
 conf_path = os.path.join(xdg_config_home(), 'gamerecorder', 'config.toml')
@@ -48,7 +61,8 @@ def gsr_exec(output_file: str,
         'gpu-screen-recorder',
         '-w', conf.mon,
         '-f', str(conf.fps),
-        '-k', 'hevc_10bit',
+        '-k', conf.vcodec,
+        '-q', conf.quality,
         '-a', 'app:'+ pipewire_name,
         '-o', output_file,
         ]
