@@ -40,6 +40,7 @@ def _get_pipewire_clients() -> list[dict]:
         ignore_app_names = [
             'Steam',
             'Steam Voice Settings',
+            'Chromium',
             'Chromium input',
             'upc.exe',
         ]
